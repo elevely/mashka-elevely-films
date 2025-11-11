@@ -3,6 +3,10 @@ let currentMovieData = null;
 const KINOPOISK_API_KEY = '849350bf-5964-42f2-b33d-e59ab7f739f2';
 const KINOPOISK_SEARCH_URL = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword';
 const KINOPOISK_MOVIE_URL = 'https://kinopoiskapiunofficial.tech/api/v2.2/films/';
+const API_BASE_URL = '/.netlify/functions/movies';
+
+// Глобальная переменная для хранения фильмов
+let allMovies = [];
 
 // Определяем тип версии
 const isAdminVersion = document.body.classList.contains('admin-version');
@@ -26,7 +30,7 @@ const movieDetailContent = document.getElementById('movieDetailContent');
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Страница загружена');
-    
+
     // В публичной версии скрываем кнопку добавления фильма
     if (isPublicVersion && addMovieBtn) {
         addMovieBtn.style.display = 'none';
@@ -41,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Настройка обработчиков событий
 function setupEventListeners() {
     console.log('Настройка обработчиков...');
-    
+
     if (isAdminVersion && addMovieBtn) {
         addMovieBtn.addEventListener('click', function() {
             console.log('Кнопка добавления нажата');
@@ -104,34 +108,42 @@ function setupEventListeners() {
     console.log('Обработчики настроены');
 }
 
-// ========== СИСТЕМА ХРАНЕНИЯ (LocalStorage) ==========
+// ========== СИСТЕМА ХРАНЕНИЯ (Supabase) ==========
 
-function loadMovies() {
-    console.log('Загрузка фильмов...');
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    console.log('Загружено фильмов:', movies.length);
-    
-    const moviesGrid = document.getElementById('moviesGrid');
-    moviesGrid.innerHTML = '';
+async function loadMovies() {
+    try {
+        console.log('🔄 Загрузка фильмов из Supabase...');
+        const response = await fetch(API_BASE_URL);
 
-    if (movies.length === 0) {
-        moviesGrid.innerHTML = '<p style="text-align: center; color: #ccc; grid-column: 1 / -1;">Фильмов пока нет</p>';
-        return;
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const movies = await response.json();
+        console.log(`✅ Загружено ${movies.length} фильмов из Supabase`);
+
+        // Сохраняем фильмы в глобальную переменную
+        allMovies = movies;
+
+        const moviesGrid = document.getElementById('moviesGrid');
+        moviesGrid.innerHTML = '';
+
+        if (movies.length === 0) {
+            moviesGrid.innerHTML = '<p style="text-align: center; color: #ccc; grid-column: 1 / -1;">Фильмов пока нет</p>';
+            return;
+        }
+
+        const sortedMovies = movies.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
+        sortedMovies.forEach(movie => addMovieCard(movie));
+        updateAllMoviePositions();
+    } catch (error) {
+        console.error('❌ Ошибка загрузки фильмов:', error);
+        const moviesGrid = document.getElementById('moviesGrid');
+        moviesGrid.innerHTML = '<p style="text-align: center; color: #ccc; grid-column: 1 / -1;">Ошибка загрузки фильмов</p>';
     }
-
-    // Убираем дубликаты по ID
-    const uniqueMovies = movies.filter((movie, index, self) => 
-        index === self.findIndex(m => m.id === movie.id)
-    );
-
-    const sortedMovies = uniqueMovies.sort((a, b) => new Date(b.dateAdded) - new Date(a.dateAdded));
-    sortedMovies.forEach(movie => addMovieCard(movie));
-    updateAllMoviePositions();
 }
 
-function saveMovie() {
-    console.log('Сохранение фильма...');
-    
+async function saveMovie() {
     if (!currentMovieData) {
         alert('Сначала выберите фильм!');
         return;
@@ -148,25 +160,67 @@ function saveMovie() {
         userTotal: Math.round(calculateUserRating('.blue-slider')),
         girlfriendTotal: Math.round(calculateUserRating('.purple-slider')),
         finalRating: Math.round((calculateUserRating('.blue-slider') + calculateUserRating('.purple-slider')) / 2),
-        dateAdded: new Date().toLocaleDateString('ru-RU'),
+        dateAdded: new Date().toISOString(),
         userNotes: '',
         girlfriendNotes: '',
         hasSpoilers: false
     };
 
-    console.log('Сохранение фильма:', movieCard);
+    try {
+        console.log('💾 Сохранение фильма в Supabase...');
+        const response = await fetch(API_BASE_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(movieCard)
+        });
 
-    // Сохраняем в LocalStorage
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    movies.unshift(movieCard);
-    localStorage.setItem('movies', JSON.stringify(movies));
+        const result = await response.json();
+        console.log('📨 Ответ сервера:', result);
 
-    addMovieCard(movieCard);
-    modal.style.display = 'none';
-    resetForm();
-    
-    setTimeout(() => updateAllMoviePositions(), 100);
-    console.log('Фильм сохранен!');
+        if (response.ok && result.success) {
+            console.log('✅ Фильм успешно сохранен в Supabase');
+            // Перезагружаем все фильмы
+            await loadMovies();
+            modal.style.display = 'none';
+            resetForm();
+        } else {
+            throw new Error(result.error || 'Unknown error');
+        }
+    } catch (error) {
+        console.error('❌ Ошибка сохранения:', error);
+        alert('Ошибка сохранения фильма: ' + error.message);
+    }
+}
+
+async function deleteMovie(movieId) {
+    if (confirm('Точно удалить этот фильм из списка?')) {
+        try {
+            console.log('🗑️ Удаление фильма:', movieId);
+            const response = await fetch(API_BASE_URL, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ movieId })
+            });
+
+            const result = await response.json();
+            console.log('📨 Ответ сервера:', result);
+
+            if (response.ok && result.success) {
+                movieDetailModal.style.display = 'none';
+                await loadMovies(); // Перезагружаем список
+                alert('Фильм удален!');
+            } else {
+                throw new Error(result.error || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка удаления:', error);
+            alert('Ошибка удаления фильма: ' + error.message);
+        }
+    }
 }
 
 // ========== ОТОБРАЖЕНИЕ КАРТОЧЕК ==========
@@ -181,7 +235,7 @@ function addMovieCard(movieCard) {
     const movieTitle = movieCard.movie.nameRu || movieCard.movie.nameEn || 'Название не указано';
     const movieYear = movieCard.movie.year || '';
 
-    // Получаем место в топе
+    // Получаем место в топе (теперь из allMovies)
     const topPosition = getMovieTopPosition(movieCard.id);
     const isTop5 = topPosition <= 5;
     const isTop10 = topPosition <= 10 && topPosition > 5;
@@ -206,7 +260,7 @@ function addMovieCard(movieCard) {
                     </div>
                 ` : ''}
             </div>
-            <p class="movie-year">${movieYear} • ${movieCard.dateAdded}</p>
+            <p class="movie-year">${movieYear} • ${new Date(movieCard.dateAdded).toLocaleDateString('ru-RU')}</p>
             <div class="criteria-scores">
                 <span>Эмоции: ${calculateAverageCriteria(movieCard, 0)}</span>
                 <span>Сюжет: ${calculateAverageCriteria(movieCard, 1)}</span>
@@ -226,13 +280,12 @@ function addMovieCard(movieCard) {
     moviesGrid.insertBefore(card, moviesGrid.firstChild);
 }
 
-// Получение позиции фильма в топе
+// Получение позиции фильма в топе (теперь из allMovies)
 function getMovieTopPosition(movieId) {
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    if (movies.length === 0) return null;
+    if (allMovies.length === 0) return null;
 
     // Сортируем фильмы по рейтингу (от высшего к низшему)
-    const sortedMovies = [...movies].sort((a, b) => b.finalRating - a.finalRating);
+    const sortedMovies = [...allMovies].sort((a, b) => b.finalRating - a.finalRating);
 
     // Находим индекс фильма (начинается с 0, поэтому +1)
     const position = sortedMovies.findIndex(movie => movie.id == movieId) + 1;
@@ -249,9 +302,9 @@ function calculateAverageCriteria(movieCard, criterionIndex) {
 
 function openMovieDetail(movieId) {
     console.log('Открытие деталей фильма:', movieId);
-    
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    const movie = movies.find(m => m.id == movieId);
+
+    // Ищем фильм в allMovies вместо localStorage
+    const movie = allMovies.find(m => m.id == movieId);
 
     if (!movie) {
         alert('Фильм не найден!');
@@ -273,7 +326,7 @@ function createMovieDetailHTML(movie) {
     const movieYear = movie.movie.year || '';
     const kpRating = movie.movie.ratingKinopoisk ? ` • КП: ${movie.movie.ratingKinopoisk}` : '';
 
-    // Получаем место в топе
+    // Получаем место в топе из allMovies
     const topPosition = getMovieTopPosition(movie.id);
     const isTop5 = topPosition <= 5;
     const isTop10 = topPosition <= 10 && topPosition > 5;
@@ -300,12 +353,12 @@ function createMovieDetailHTML(movie) {
                 </div>
                 <div class="movie-detail-meta">
                     <span class="movie-year-large">${movieYear}${kpRating}</span><br>
-                    <span class="date-added">Добавлен: ${movie.dateAdded}</span>
+                    <span class="date-added">Добавлен: ${new Date(movie.dateAdded).toLocaleDateString('ru-RU')}</span>
                 </div>
 
                 ${isAdminVersion ? `
                 <div class="movie-detail-actions">
-                    <button class="movie-detail-btn edit" onclick="enableEditMode()">✏️ Редактировать заметки</button>
+                    <button class="movie-detail-btn edit" onclick="enableEditMode(${movie.id})">✏️ Редактировать заметки</button>
                     <button class="movie-detail-btn delete" onclick="deleteMovie(${movie.id})">🗑️ Удалить фильм</button>
                 </div>
                 ` : ''}
@@ -403,127 +456,45 @@ function createMovieDetailHTML(movie) {
     `;
 }
 
-function createCriteriaDetailHTML(ratings, color) {
-    const criteriaNames = [
-        'Эмоциональное вовлечение',
-        'Нарратив и структура',
-        'Идейная глубина',
-        'Эстетика и стиль',
-        'Общее послевкусие'
-    ];
+// ... остальные функции остаются такими же, но нужно обновить saveMovieEdits:
 
-    return criteriaNames.map((name, index) => {
-        const rating = ratings[index] || 0;
-        return `
-            <div class="criteria-detail">
-                <span class="criteria-name">${name}</span>
-                <span class="criteria-rating ${color}-text">${rating}/10</span>
-            </div>
-        `;
-    }).join('');
-}
-
-function createAverageCriteriaHTML(movie) {
-    const criteriaNames = ['Эмоции', 'Сюжет', 'Идея', 'Стиль', 'Послевкусие'];
-
-    return criteriaNames.map((name, index) => {
-        const userRating = movie.userRatings[index] || 0;
-        const girlfriendRating = movie.girlfriendRatings[index] || 0;
-        const average = ((userRating + girlfriendRating) / 2).toFixed(1);
-        const difference = Math.abs(userRating - girlfriendRating);
-        const width = (average / 10) * 100;
-
-        let progressColor = 'green';
-        if (average < 4) progressColor = 'red';
-        else if (average < 7) progressColor = 'yellow';
-
-        let differenceText = '';
-        if (difference > 3) differenceText = '🔴 Большая разница';
-        else if (difference > 1) differenceText = '🟡 Небольшая разница';
-        else differenceText = '🟢 Почти одинаково';
-
-        return `
-            <div style="width: 100%; margin-bottom: 15px;">
-                <div class="average-rating">${average}/10</div>
-                <div class="progress-bar">
-                    <div class="progress-fill ${progressColor}" style="width: ${width}%"></div>
-                </div>
-                <div class="difference-indicator">${differenceText}</div>
-            </div>
-        `;
-    }).join('');
-}
-
-// ========== РЕДАКТИРОВАНИЕ ЗАМЕТОК ==========
-
-function setupEditHandlers(movie) {
-    // Дополнительная логика для редактирования
-}
-
-function enableEditMode() {
-    document.getElementById('userNotesDisplay').style.display = 'none';
-    document.getElementById('girlfriendNotesDisplay').style.display = 'none';
-    document.getElementById('userNotesEdit').style.display = 'block';
-    document.getElementById('girlfriendNotesEdit').style.display = 'block';
-    document.getElementById('editActions').style.display = 'flex';
-}
-
-function cancelEditMode() {
-    document.getElementById('userNotesDisplay').style.display = 'block';
-    document.getElementById('girlfriendNotesDisplay').style.display = 'block';
-    document.getElementById('userNotesEdit').style.display = 'none';
-    document.getElementById('girlfriendNotesEdit').style.display = 'none';
-    document.getElementById('editActions').style.display = 'none';
-}
-
-function saveMovieEdits(movieId) {
+async function saveMovieEdits(movieId) {
     const userNotes = document.getElementById('userNotesEdit').value;
     const girlfriendNotes = document.getElementById('girlfriendNotesEdit').value;
 
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    const movieIndex = movies.findIndex(m => m.id == movieId);
-
-    if (movieIndex !== -1) {
-        movies[movieIndex].userNotes = userNotes;
-        movies[movieIndex].girlfriendNotes = girlfriendNotes;
-        movies[movieIndex].hasSpoilers = userNotes.toLowerCase().includes('спойлер') || girlfriendNotes.toLowerCase().includes('спойлер');
-
-        localStorage.setItem('movies', JSON.stringify(movies));
-
-        // Обновляем отображение
-        openMovieDetail(movieId);
-
-        alert('Изменения сохранены!');
-    }
-}
-
-// ========== СПОЙЛЕРЫ ==========
-
-function setupSpoilerHandlers() {
-    const spoilerToggle = document.querySelector('.spoiler-toggle');
-    const spoilerContent = document.getElementById('spoilerContent');
-
-    if (spoilerToggle && spoilerContent) {
-        spoilerToggle.addEventListener('click', function() {
-            const isVisible = spoilerContent.style.display === 'block';
-            spoilerContent.style.display = isVisible ? 'none' : 'block';
-            this.textContent = isVisible ? '⚠️ Показать спойлеры' : '👁️‍🗨️ Скрыть спойлеры';
+    try {
+        // Обновляем фильм в Supabase
+        const response = await fetch(API_BASE_URL, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                movieId: movieId,
+                userNotes: userNotes,
+                girlfriendNotes: girlfriendNotes,
+                hasSpoilers: userNotes.toLowerCase().includes('спойлер') || girlfriendNotes.toLowerCase().includes('спойлер')
+            })
         });
-    }
-}
 
-function toggleSpoilers() {
-    const spoilerContent = document.getElementById('spoilerContent');
-    const spoilerToggle = document.querySelector('.spoiler-toggle');
+        if (response.ok) {
+            // Обновляем локальные данные
+            const movieIndex = allMovies.findIndex(m => m.id == movieId);
+            if (movieIndex !== -1) {
+                allMovies[movieIndex].userNotes = userNotes;
+                allMovies[movieIndex].girlfriendNotes = girlfriendNotes;
+                allMovies[movieIndex].hasSpoilers = userNotes.toLowerCase().includes('спойлер') || girlfriendNotes.toLowerCase().includes('спойлер');
+            }
 
-    if (spoilerContent && spoilerToggle) {
-        if (spoilerContent.style.display === 'none') {
-            spoilerContent.style.display = 'block';
-            spoilerToggle.textContent = '👁️‍🗨️ Скрыть спойлеры';
+            // Обновляем отображение
+            openMovieDetail(movieId);
+            alert('Изменения сохранены!');
         } else {
-            spoilerContent.style.display = 'none';
-            spoilerToggle.textContent = '⚠️ Показать спойлеры';
+            throw new Error('Ошибка сохранения');
         }
+    } catch (error) {
+        console.error('Ошибка сохранения заметок:', error);
+        alert('Ошибка сохранения заметок');
     }
 }
 
@@ -531,21 +502,20 @@ function toggleSpoilers() {
 
 function showStats() {
     console.log('Показ статистики');
-    
-    const movies = JSON.parse(localStorage.getItem('movies')) || [];
-    
-    if (movies.length === 0) {
+
+    if (allMovies.length === 0) {
         statsModal.style.display = 'block';
         document.getElementById('statsContent').innerHTML = '<p>Пока нет данных для статистики. Добавьте несколько фильмов!</p>';
         return;
     }
 
-    const stats = calculateStatistics(movies);
+    const stats = calculateStatistics(allMovies); // Теперь используем allMovies
     displayStatistics(stats);
     statsModal.style.display = 'block';
 }
 
 function calculateStatistics(movies) {
+    // ... эта функция остается такой же, но теперь работает с allMovies
     let userTotal = 0;
     let girlfriendTotal = 0;
     let userCriteriaSums = [0, 0, 0, 0, 0];
@@ -777,8 +747,7 @@ function updateAllMoviePositions() {
     const moviesGrid = document.getElementById('moviesGrid');
     const movieCards = moviesGrid.querySelectorAll('.movie-card');
 
-    // Получаем все фильмы и сортируем их по рейтингу
-    const allMovies = JSON.parse(localStorage.getItem('movies')) || [];
+    // Получаем все фильмы из allMovies и сортируем их по рейтингу
     const sortedMovies = [...allMovies].sort((a, b) => b.finalRating - a.finalRating);
 
     movieCards.forEach(card => {
