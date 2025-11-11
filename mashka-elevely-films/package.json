@@ -1,0 +1,6 @@
+{
+  "name": "movie-ratings",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  }
+}
