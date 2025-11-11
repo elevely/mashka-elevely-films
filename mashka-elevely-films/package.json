@@ -1,0 +1,16 @@
+{
+  "name": "movie-ratings",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Movie ratings app for Masha and elevely",
+  "main": "script.js",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "keywords": ["movies", "ratings"],
+  "author": "",
+  "license": "ISC"
+}
