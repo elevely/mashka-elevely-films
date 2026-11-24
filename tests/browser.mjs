@@ -41,9 +41,17 @@ try {
   await page.locator('[name=q]').fill('Новый');
   await page.locator('#catalog button').click();
   await page.locator('.search-result').first().click();
-  for(const field of await page.locator('#rate input[type=number]').all()) await field.fill('8');
+  await page.locator('#rate').waitFor();
+  const criteria = page.locator('#rate input[type=number]');
+  assert.equal(await criteria.count(),10);
+  for (const field of await criteria.all()) await field.fill('8');
   await page.locator('#rate textarea[name=userNotes]').fill('Только тестовая запись');
-  await page.locator('#rate button').click();
+  assert.equal(await page.locator('#rate').evaluate(form=>form.checkValidity()),true);
+  const [created] = await Promise.all([
+    page.waitForResponse(r=>r.url()===root+'/api/movies' && r.request().method()==='POST'),
+    page.locator('#rate button').click()
+  ]);
+  assert.equal(created.status(),201,await created.text());
   await page.locator('#edit-notes').click();
   await page.locator('#notes-form textarea[name=userNotes]').fill('Новая заметка после просмотра');
   await page.locator('#notes-form button').click();

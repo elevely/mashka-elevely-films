@@ -54,7 +54,11 @@ export function submit(form, save) {
     fields.forEach(el => el.disabled = true);
     error.hidden = true;
     try { await save(data); }
-    catch (cause) { error.textContent = cause.message; error.hidden = false; }
+    catch (cause) { error.textContent = cause.message;
+      if (cause.status === 401 && form.hasAttribute('data-draft')) {
+        error.textContent += ' Откройте вход в новой вкладке, затем вернитесь к этой форме и повторите сохранение.';
+      }
+      error.hidden = false; }
     finally { fields.forEach(el => el.disabled = false); pending = false; }
   };
 }

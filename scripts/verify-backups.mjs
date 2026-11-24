@@ -1,12 +1,26 @@
 import { readFile } from 'node:fs/promises';
 import { revision } from '../server/data.mjs';
-if(process.argv.length!==4)throw new Error('Usage: npm run verify-backups -- before.json after.json');
-const [before,after]=await Promise.all(process.argv.slice(2).map(async p=>JSON.parse(await readFile(p,'utf8'))));
-if(!Array.isArray(before.rows)||!Array.isArray(after.rows))throw new Error('Both inputs must be full row exports.');
-const keyed=rows=>new Map(rows.map(row=>[String(row.id),row]));
-const a=keyed(before.rows),b=keyed(after.rows);
-if(a.size!==before.rows.length||b.size!==after.rows.length)throw new Error('Duplicate IDs in export.');
-let missing=0,changed=0;for(const [id,row] of a){if(!b.has(id))missing++;else if(revision(row)!==revision(b.get(id)))changed++;}
-const added=[...b.keys()].filter(id=>!a.has(id)).length;
-console.log(JSON.stringify({before:a.size,after:b.size,missing,changed,added,identical:!missing&&!changed&&!added}));
-if(missing||changed||added)process.exitCode=1;
+
+if (process.argv.length !== 4) throw new Error('Usage: npm run verify-backups -- before.json after.json');
+async function readRows(file) {
+  const snapshot = JSON.parse(await readFile(file,'utf8'));
+  if (!Array.isArray(snapshot.rows)) throw new Error('Expected a full row export.');
+  if (snapshot.rowCount !== undefined && snapshot.rowCount !== snapshot.rows.length) throw new Error('Row count mismatch.');
+  if (snapshot.sha256 !== undefined && snapshot.sha256 !== revision(snapshot.rows)) throw new Error('Snapshot checksum mismatch.');
+  const rows = new Map();
+  for (const row of snapshot.rows) {
+    if (row.id == null || rows.has(String(row.id))) throw new Error('Missing or duplicate IDs in export.');
+    rows.set(String(row.id),row);
+  }
+  return rows;
+}
+const [before,after] = await Promise.all(process.argv.slice(2).map(readRows));
+let missing = 0, changed = 0;
+for (const [id,row] of before) {
+  if (!after.has(id)) missing++;
+  else if (revision(row) !== revision(after.get(id))) changed++;
+}
+const added = [...after.keys()].filter(id => !before.has(id)).length;
+const identical = !missing && !changed && !added;
+console.log(JSON.stringify({before:before.size,after:after.size,missing,changed,added,identical}));
+if (!identical) process.exitCode=1;

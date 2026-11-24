@@ -3,9 +3,12 @@ import { HttpError, assert } from './errors.mjs';
 export function createServices(env = process.env, fetcher = fetch) {
   const base = env.SUPABASE_URL?.replace(/\/$/, '');
   const anon = env.SUPABASE_ANON_KEY;
-  const key = anon;
   const admins = new Set((env.ALLOWED_ADMIN_IDS || '').split(',').map(s => s.trim()).filter(Boolean));
   const canWrite = env.ENABLE_WRITES === 'true' && env.RLS_VERIFIED === 'true' && admins.size > 0;
+  // Supabase's newer sb_* keys are opaque API keys, not JWT bearer tokens.
+  function authorization(token) {
+    return token && !token.startsWith('sb_') ? { Authorization:`Bearer ${token}` } : {};
+  }
   async function upstream(url, options = {}) {
     let response;
     try { response = await fetcher(url, { ...options, signal: AbortSignal.timeout(12000) }); }
@@ -14,13 +17,16 @@ export function createServices(env = process.env, fetcher = fetch) {
     try { data = await response.json(); } catch { throw new HttpError(502, 'Сервис вернул некорректный ответ.'); }
     return { response, data };
   }
-  function ready() { assert(base && /^https:\/\/[^/]+\.supabase\.co$/.test(base) && anon && key, 'Подключение к коллекции ещё не настроено.', 503); }
+  function ready() { assert(base && /^https:\/\/[^/]+\.supabase\.co$/.test(base) && anon, 'Подключение к коллекции ещё не настроено.', 503); }
   async function db(params, options = {}, token = anon, endpoint = 'movies') {
     ready();
     const { response, data } = await upstream(`${base}/rest/v1/${endpoint}?${new URLSearchParams(params)}`, {
-      ...options, headers: { apikey: key, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=representation,count=exact', ...options.headers }
+      ...options, headers: { apikey: anon, ...authorization(token), 'Content-Type': 'application/json', Prefer: 'return=representation,count=exact', ...options.headers }
     });
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new HttpError(403, 'Supabase отклонил доступ. Проверьте роль и политики таблицы.');
+      }
       if (response.status === 409) throw new HttpError(409, 'Запись с таким идентификатором уже существует.');
       throw new HttpError(503, 'Не удалось обратиться к коллекции. Проверьте подключение и права доступа.');
     }

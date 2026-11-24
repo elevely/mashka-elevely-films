@@ -108,3 +108,30 @@ test('upstream failures never leak raw database or credential messages',async()=
  const services=createServices({SUPABASE_URL:'https://test.supabase.co',SUPABASE_ANON_KEY:'secret-test'},async()=>new Response(JSON.stringify({message:'private-db-secret'}),{status:500}));
  const result=await call('movies',services);assert.equal(result.statusCode,503);assert.ok(!JSON.stringify(result).includes('private-db-secret'));
 });
+
+test('public reads use publishable credentials and note RPC runs as the owner with a body',async()=>{
+  const calls=[];
+  const row=fixtures()[0];
+  const backend=createServices({
+    SUPABASE_URL:'https://test.supabase.co',
+    SUPABASE_ANON_KEY:'sb_publishable_fixture',
+    SUPABASE_SERVICE_ROLE_KEY:'never-use-this'
+  }, async (url, options)=>{
+    calls.push({url,options});
+    return new Response(JSON.stringify([row]),{headers:{'content-range':'0-0/1'}});
+  });
+  await backend.list();
+  assert.equal(calls[0].options.headers.apikey,'sb_publishable_fixture');
+  assert.equal(calls[0].options.headers.Authorization,undefined);
+  const notes={user_notes:'Тест с кавычками " и переносом\nстроки',girlfriend_notes:'',has_spoilers:false};
+  await backend.updateNotes(row,notes,'owner-test-token');
+  const rpc=calls[1];
+  assert.equal(new URL(rpc.url).pathname,'/rest/v1/rpc/films_update_notes');
+  assert.equal(new URL(rpc.url).search,'');
+  assert.equal(rpc.options.headers.Authorization,'Bearer owner-test-token');
+  assert.deepEqual(JSON.parse(rpc.options.body),{
+    film_id:row.id,previous_e:row.user_notes,previous_m:row.girlfriend_notes,previous_spoilers:row.has_spoilers,
+    next_e:notes.user_notes,next_m:'',next_spoilers:false
+  });
+  assert.equal(JSON.stringify(calls).includes('never-use-this'),false);
+});
