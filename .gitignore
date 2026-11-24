@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+backups/
+private-audit/
+test-results/
+*.log
+.DS_Store

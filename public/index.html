@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111410">
+  <meta name="description" content="Личный киноклуб Машки и elevely. Два взгляда, любимые фильмы и впечатления после титров.">
+  <title>Mashka & elevely — наш киноклуб</title>
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#collection">К коллекции</a>
+  <div id="demo-banner" class="demo-banner" hidden>ТЕСТОВЫЙ КИНОКЛУБ · Вымышленные фильмы и оценки · Production не подключён</div>
+  <header class="site-header wrap">
+    <a class="brand" href="/" aria-label="Mashka и elevely, главная"><span class="brand-mark">m<span>e</span></span><span>Mashka <i>&</i> elevely<small>НАШ КИНОКЛУБ</small></span></a>
+    <nav aria-label="Главная навигация"><a href="#collection" class="nav-link active" data-view="collection">Коллекция</a><a href="#stats" class="nav-link" data-view="stats">Наши вкусы</a></nav>
+    <button id="account-button" class="button subtle"><span class="status-dot"></span><span id="account-label">Войти</span></button>
+  </header>
+  <main class="wrap">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy"><p class="eyebrow"><span class="tiny-star">✳</span> ЛИЧНЫЙ КИНОДНЕВНИК НА ДВОИХ</p><h1 id="hero-title">Два взгляда.<br>Одно <em>кино.</em></h1><p class="hero-description">То, что посмотрели вместе.<br>То, о чём спорим после титров.</p><div class="hero-bottom"><div class="avatars" aria-label="Два зрителя"><span class="avatar masha">М</span><span class="avatar elevely">e</span></div><span>Машка & elevely<br><small>авторы коллекции</small></span><span class="hero-rule"></span></div></div>
+      <div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div id="hero-posters" class="hero-posters"><div class="cinema-ticket"><span>PRIVATE SCREENING</span><strong>После<br><i>титров.</i></strong><div>ДВА ЗРИТЕЛЯ <b>02</b></div><small>MASHKA &amp; ELEVELY</small></div></div><div class="art-stamp">M & E<br><span>FILM JOURNAL</span></div></div>
+    </section>
+    <div id="summary" class="summary" aria-label="Краткая статистика"><div><strong>—</strong><span>фильмов в коллекции</span></div><div><strong>—</strong><span>средняя оценка Машки</span></div><div><strong>—</strong><span>средняя оценка elevely</span></div><div><strong>—</strong><span>близких оценок</span></div></div>
+    <section id="collection" class="collection-section" aria-labelledby="collection-title">
+      <div class="section-heading"><div><p class="eyebrow">НАША МАЛЕНЬКАЯ СИНЕМАТЕКА</p><h2 id="collection-title">Коллекция <span id="collection-count" class="count-pill">—</span></h2></div><div class="heading-actions"><button id="export-button" class="button subtle" disabled>↓ Экспорт</button><button id="add-button" class="button primary">＋ Добавить фильм</button></div></div>
+      <p id="access-notice" class="access-notice" hidden></p>
+      <div class="toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><span class="sr-only">Поиск в коллекции</span><input id="collection-search" type="search" placeholder="Найти тот самый фильм…" maxlength="120"></label><label><span class="sr-only">Жанр</span><select id="genre-filter"><option value="">Все жанры</option></select></label><label><span class="sr-only">Сортировка</span><select id="sort-order"><option value="recent">Сначала новые</option><option value="rating">По общей оценке</option><option value="masha">Топ Машки</option><option value="elevely">Топ elevely</option><option value="title">По названию</option></select></label></div>
+      <div class="collection-meta"><div class="filter-tabs" role="group" aria-label="Подборки"><button class="filter-tab selected" data-filter="all" aria-pressed="true">Все фильмы</button><button class="filter-tab" data-filter="favorites" aria-pressed="false">Любим оба <span>♡</span></button><button class="filter-tab" data-filter="different" aria-pressed="false">Мнения разошлись</button></div><span class="rating-legend"><i class="masha-dot"></i> Машка <i class="elevely-dot"></i> elevely</span></div>
+      <div id="collection-status" class="state-panel" role="status"><span class="loader"></span><h3>Открываем киноклуб…</h3><p>Загружаем ваши фильмы и оценки.</p></div>
+      <div id="movies-grid" class="movies-grid" aria-label="Фильмы" aria-busy="true"></div>
+      <div class="load-more-wrap"><button id="load-more" class="button subtle" hidden>Показать ещё</button></div>
+    </section>
+    <section id="stats" class="stats-section" aria-labelledby="stats-title" hidden><div class="section-heading"><div><p class="eyebrow">КИНО МЕЖДУ НАМИ</p><h2 id="stats-title">Совпадаем во вкусах?</h2></div><span class="muted">Только ваши сохранённые оценки</span></div><div id="stats-content"></div></section>
+  </main>
+  <footer class="wrap site-footer"><span>Mashka <i>&</i> elevely <span class="footer-dot">·</span> Кино, которое мы прожили.</span><span><span class="tiny-star">✳</span></span></footer>
+  <dialog id="modal" aria-labelledby="dialog-title"><button class="dialog-close" aria-label="Закрыть окно" data-close>×</button><div id="dialog-content"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <noscript><p class="wrap">Для загрузки коллекции включите JavaScript в браузере.</p></noscript>
+</body>
+</html>
