@@ -75,7 +75,8 @@ export function createHandler(kind, services, env = process.env) {
       if (kind==='movies') {
         if (method==='GET') {
           if (params.get('export')==='1') { await admin(req);return send(200,{schemaVersion:1,exportedAt:new Date().toISOString(),rows:await services.list(token)}); }
-          return send(200,{movies:(await services.list()).map(mapRow),demo:services.demo});
+          const viewer = token ? await services.user(token) : null;
+          return send(200,{movies:(await services.list(viewer ? token : undefined)).map(mapRow),demo:services.demo});
         }
         if (['POST','PATCH','PUT'].includes(method)) {
           origin(req);const actor=await admin(req);assert(services.canWrite,'Коллекция доступна для чтения. Запись включается после проверки доступа к базе.',503);
