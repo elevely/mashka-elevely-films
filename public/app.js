@@ -9,7 +9,19 @@ const options = {query:query.get('q') || '', sort:query.get('sort') || 'recent',
 const ticket = $('#hero-posters').innerHTML;
 let ranks = new Map();
 function renderSession(next) {
+  const accountChanged =
+    typeof session.authenticated === 'boolean' &&
+    (
+      session.authenticated !== next.authenticated ||
+      session.user?.role !== next.user?.role
+    );
+
   session = next;
+
+  if (accountChanged) {
+    window.location.reload();
+    return;
+  }
   $('#demo-banner').hidden = !session.demo;
   $('#account-label').textContent = session.authenticated ? (session.user?.name || 'Мой аккаунт') : 'Войти';
   $('.status-dot').classList.toggle('online', Boolean(session.authenticated));
