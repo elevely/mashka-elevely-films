@@ -5,6 +5,7 @@ const meta = m => [m.movie?.year,...genresOf(m).slice(0,2)].filter(Boolean).map(
 export function card(m, rank) {
   return `<article class="movie-card"><button class="card-button" data-movie="${esc(m.id)}">
     <div class="poster-wrap"><img class="poster" loading="lazy" decoding="async" src="${esc(safePoster(m.movie))}" alt="">
+    ${numeric(m.userTotal)===null || numeric(m.girlfriendTotal)===null ? '<span class="waiting-badge">Ждём вторую оценку</span>' : ''}
     ${rank ? '<span class="poster-badge">ТОП ' + rank + '</span>' : ''}
     <div class="poster-rating"><strong>${score(m.finalRating)}</strong><span>/ 100</span></div><span class="poster-open" aria-hidden="true">↗</span></div>
     <div class="card-meta">${meta(m)}</div><h3>${esc(titleOf(m))}</h3>
@@ -27,7 +28,7 @@ export function detail(m, canWrite) {
     <tbody>${CRITERIA.map((c,i) => {const a=m.girlfriendRatings?.[i],b=m.userRatings?.[i];
       return `<tr><td>${esc(c)}</td><td>${score(a)}</td><td>${score(b)}</td><td>${score(numeric(a)!==null && numeric(b)!==null ? mean([a,b]) : null)}</td></tr>`;}).join('')}</tbody></table>
     <h3 class="small-heading">После титров</h3>${spoiler ? `<details class="spoiler-details"><summary>Показать заметки со спойлерами</summary>${notes}</details>` : notes}
-    ${canWrite ? '<button class="button subtle" id="edit-notes">Редактировать заметки</button>' : ''}`;
+    ${canWrite ? '<button class="button subtle" id="edit-notes">Моя рецензия</button>' : ''}`;
 }
 
 function ranking(movies, sort, label, key) {

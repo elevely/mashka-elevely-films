@@ -3,13 +3,17 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.x" },
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=.env server/dev.mjs",
     "demo": "node server/demo.mjs",
     "test": "node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
-    "verify-backups": "node scripts/verify-backups.mjs"
+    "verify-backups": "node scripts/verify-backups.mjs",
+    "test:db": "node scripts/test-postgres.mjs",
+    "test:browser": "node scripts/test-browser.mjs"
   }
 }

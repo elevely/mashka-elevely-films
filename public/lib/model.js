@@ -4,10 +4,19 @@ export const titleOf = entry => entry.movie?.nameRu || entry.movie?.nameEn || en
 export const genresOf = entry => Array.isArray(entry.movie?.genres) ? entry.movie.genres.map(g => typeof g === 'string' ? g : g?.genre).filter(g => typeof g === 'string' && g.length > 0) : [];
 export const score = value => numeric(value) === null ? '—' : new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(Number(value));
 export const mean = values => { const valid = values.map(numeric).filter(v => v !== null); return valid.length ? valid.reduce((a,b) => a+b, 0) / valid.length : null; };
+export function rawRating(ratings) {
+  if (!Array.isArray(ratings) || ratings.length !== 5 || !ratings.every(v => typeof v === 'number' && Number.isFinite(v))) return null;
+  return ratings.reduce((sum, value, i) => sum + value * (i === 4 ? 1.5 : 1), 0) / 5.5 * 10;
+}
 export function calculateRatings(user, masha) {
-  const weighted = ratings => ratings.reduce((sum, value, i) => sum + value * (i === 4 ? 1.5 : 1), 0) / 5.5 * 10;
-  const a = weighted(user), b = weighted(masha);
-  return { userTotal: Math.round(a), girlfriendTotal: Math.round(b), finalRating: Math.round((a+b)/2) };
+  const a = rawRating(user), b = rawRating(masha);
+  return { userTotal: a === null ? null : Math.round(a), girlfriendTotal: b === null ? null : Math.round(b), finalRating: a === null || b === null ? null : Math.round((a+b)/2) };
+}
+export function sameFilm(a, b) {
+  const provider = m => String(m?.kinopoiskId || m?.filmId || '');
+  if (provider(a) && provider(b) && provider(a) === provider(b)) return true;
+  const title = m => String(m?.nameRu || m?.nameEn || m?.nameOriginal || '').trim().toLocaleLowerCase('ru-RU').replace(/\s+/g, ' ');
+  return !!title(a) && title(a) === title(b) && String(a?.year || '') === String(b?.year || '');
 }
 export function statistics(movies) {
   const pairs = movies.filter(m => numeric(m.userTotal) !== null && numeric(m.girlfriendTotal) !== null);

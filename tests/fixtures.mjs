@@ -18,14 +18,29 @@ export function fixtures() {
 }
 export function memoryServices(initial=fixtures()) {
   let rows=structuredClone(initial);
+  const sessions=new Map([['demo-session',{id:'demo-e',role:'elevely',name:'elevely'}],['demo-mashka-session',{id:'demo-m',role:'mashka',name:'Машка'}]]);
+  const refreshes=new Map();
+  let counter=0;
   return {
     demo:true,canWrite:true,searchAvailable:true,
     async list(){return structuredClone(rows);},
     async get(id){return structuredClone(rows.find(r=>String(r.id)===String(id))||null);},
     async insert(row){if(rows.some(r=>String(r.id)===String(row.id)))throw new HttpError(409,'Duplicate');rows.push(structuredClone(row));return structuredClone(row);},
-    async updateNotes(row,patch){const i=rows.findIndex(r=>String(r.id)===String(row.id));if(i<0||revision(rows[i])!==revision(row))throw new HttpError(409,'Conflict');rows[i]={...rows[i],...structuredClone(patch)};return structuredClone(rows[i]);},
-    async user(token){return token==='demo-session'?{id:'demo-admin'}:null;},
-    async login(email,password){if(email!=='demo@example.test'||password!=='demo-only')throw new HttpError(401,'Неверные данные тестового аккаунта.');return {token:'demo-session',expires:3600};},
+    async updateReview(row,patch){const i=rows.findIndex(r=>String(r.id)===String(row.id));if(i<0||revision(rows[i])!==revision(row))throw new HttpError(409,'Conflict');rows[i]={...rows[i],...structuredClone(patch)};return structuredClone(rows[i]);},
+    async user(token){return sessions.get(token)||null;},
+    async login(email,password){
+      const role=email==='mashka@example.test'?'mashka':email==='elevely@example.test'?'elevely':null;
+      if(!role||password!=='demo-only')throw new HttpError(401,'Неверные данные тестового аккаунта.');
+      const token='demo-'+(++counter),refreshToken='refresh-'+counter,user={id:'demo-'+role,role,name:role==='mashka'?'Машка':'elevely'};
+      sessions.set(token,user);refreshes.set(refreshToken,{token,user});return {token,refreshToken,user,expires:3600};
+    },
+    async refresh(refreshToken){
+      const saved=refreshes.get(refreshToken);if(!saved)throw new HttpError(401,'Сессия истекла. Войдите снова.');
+      refreshes.delete(refreshToken);sessions.delete(saved.token);
+      const token='demo-'+(++counter),next='refresh-'+counter;sessions.set(token,saved.user);refreshes.set(next,{token,user:saved.user});
+      return {token,refreshToken:next,user:saved.user,expires:3600};
+    },
+    async logout(token){sessions.delete(token);for(const [key,value] of refreshes)if(value.token===token)refreshes.delete(key);},
     async search(params){if(params.get('id'))return {movie:{filmId:999,nameRu:'Новый тестовый фильм',year:2026,genres:[{genre:'драма'}]}};return {movies:[{filmId:999,nameRu:'Новый тестовый фильм',year:2026,genres:[{genre:'драма'}]}]};}
   };
 }

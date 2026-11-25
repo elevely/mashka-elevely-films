@@ -1872,3 +1872,13 @@ meter:last-child::-webkit-meter-optimum-value {
     transition:none!important
   }
 }
+
+.waiting-badge { position:absolute;top:12px;right:9px;left:9px;padding:7px 9px;background:#192116ed;border:1px solid var(--line);border-radius:7px;font-size:11px;text-align:center;color:var(--text); }
+.rating-fieldset { max-width:540px; }
+@media(max-width:730px) {
+  .field, .form-help, .note-box p, .detail-description { font-size:14px; }
+  input, select, textarea, .field input, .toolbar select, .rating-input-row input { font-size:16px; }
+  .card-meta, .card-scores { font-size:11px; }
+  .waiting-badge { font-size:10px; }
+  .demo-banner { font-size:10px; }
+}

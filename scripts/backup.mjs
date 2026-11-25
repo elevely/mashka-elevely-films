@@ -19,7 +19,7 @@ if (!process.env.SUPABASE_BACKUP_KEY) {
   throw new Error('Supply an owner-authorized backup key with full SELECT access.');
 }
 
-const services = createServices({...process.env,SUPABASE_ANON_KEY:process.env.SUPABASE_BACKUP_KEY});
+const services = createServices({...process.env,SUPABASE_ANON_KEY:process.env.SUPABASE_BACKUP_KEY},fetch,{backupOnly:true});
 const first = await services.list();
 const sha256 = revision(first);
 if (sha256 !== revision(await services.list())) {

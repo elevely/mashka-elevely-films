@@ -3,7 +3,7 @@ import {selectMovies, statistics, genresOf, safePoster, score, numeric} from './
 import {editNotes, chooseMovie, account} from './lib/editor.js';
 import {card, detail, statsView} from './lib/views.js';
 
-let movies = [], loaded = false, limit = 24, session = {};
+let movies = [], loaded = false, limit = 24, session = {}, loading = false;
 const query = new URLSearchParams(location.search);
 const options = {query:query.get('q') || '', sort:query.get('sort') || 'recent', genre:query.get('genre') || '', filter:query.get('filter') || 'all'};
 const ticket = $('#hero-posters').innerHTML;
@@ -11,7 +11,7 @@ let ranks = new Map();
 function renderSession(next) {
   session = next;
   $('#demo-banner').hidden = !session.demo;
-  $('#account-label').textContent = session.authenticated ? 'Мой аккаунт' : 'Войти';
+  $('#account-label').textContent = session.authenticated ? (session.user?.name || 'Мой аккаунт') : 'Войти';
   $('.status-dot').classList.toggle('online', Boolean(session.authenticated));
   $('#access-notice').hidden = !session.authenticated || session.canWrite;
   $('#access-notice').textContent = 'Коллекция доступна для чтения. Запись пока отключена.';
@@ -21,7 +21,7 @@ function openMovie(id) {
   const m = movies.find(row => String(row.id) === String(id));
   if (!m) return;
   openDialog(detail(m, session.canWrite));
-  if (session.canWrite) $('#edit-notes').onclick = () => editNotes(m, saved);
+  if (session.canWrite) $('#edit-notes').onclick = () => editNotes(m, saved, session);
 }
 function saved(m) {
   movies = [m, ...movies.filter(row => String(row.id)!==String(m.id))];
@@ -67,18 +67,21 @@ function renderAll() {
   $('#export-button').disabled = !loaded;
   renderGrid();
 }
-async function loadMovies() {
+async function loadMovies(quiet = false) {
+  if (loading) return;
+  loading = true;
   const status = $('#collection-status');
-  status.hidden = false; status.textContent='Загружаем коллекцию…';
+  if (!quiet) { status.hidden = false; status.textContent='Загружаем коллекцию…'; }
   $('#movies-grid').setAttribute('aria-busy','true');
   try {
     const result=await request('movies');
     if (!Array.isArray(result.movies)) throw new Error('Ответ коллекции не распознан.');
     movies=result.movies; loaded=true; $('#demo-banner').hidden=!result.demo; renderAll();
   } catch(error) {
+    if (quiet) { toast(error.message);return; }
     status.innerHTML=`<h3>Коллекция недоступна</h3><p>${esc(error.message)}</p><button class="button primary" id="retry">Повторить загрузку</button>`;
     $('#stats-content').innerHTML='<p class="state-panel">Для статистики нужно загрузить коллекцию. <a href="#collection">К коллекции →</a></p>';
-  } finally { $('#movies-grid').setAttribute('aria-busy','false'); }
+  } finally { loading=false; $('#movies-grid').setAttribute('aria-busy','false'); }
 }
 function changeView() {
   const stats=location.hash==='#stats';
@@ -104,7 +107,7 @@ for (const [id,key,event] of [['collection-search','query','input'],['genre-filt
   $('#'+id).addEventListener(event,e=>{options[key]=e.target.value; limit=24; renderGrid();});
 }
 $('#load-more').onclick=()=>{limit+=24; renderGrid();};
-$('#add-button').onclick=()=>session.authenticated ? chooseMovie(saved) : account(session,renderSession,()=>chooseMovie(saved));
+$('#add-button').onclick=()=>session.authenticated ? chooseMovie(saved,session) : account(session,renderSession,()=>chooseMovie(saved,session));
 $('#account-button').onclick=()=>account(session,renderSession);
 $('#export-button').onclick=async()=>{
   try {
@@ -119,3 +122,16 @@ request('auth').then(result=>{
   renderSession(result);
   if (['/admin','/admin.html'].includes(location.pathname)) account(session,renderSession);
 }).catch(error=>toast(error.message));
+
+// Refresh shared data when returning to a device and periodically while browsing.
+// A draft stays intact; its revision detects concurrent changes on save.
+async function sync() {
+  if (document.hidden || $('#modal').open) return;
+  try { renderSession(await request('auth')); } catch(error) { toast(error.message); }
+  if(loaded) await loadMovies(true);
+}
+window.addEventListener('focus',sync);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});
+setInterval(sync,60000);
+
+window.addEventListener('films-session-expired',()=>renderSession({...session,authenticated:false,canWrite:false,user:null}));

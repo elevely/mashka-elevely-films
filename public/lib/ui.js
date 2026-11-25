@@ -3,7 +3,15 @@ export const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({
   '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
 })[char]);
 
-export async function request(path, method = 'GET', body, signal) {
+let refreshing;
+async function refreshSession() {
+  if (!refreshing) {
+    const run = () => request('auth','PUT',undefined,undefined,false);
+    refreshing = (navigator.locks ? navigator.locks.request('films-auth-refresh',run) : run()).finally(()=>{refreshing=undefined;});
+  }
+  return refreshing;
+}
+export async function request(path, method = 'GET', body, signal, retry = true) {
   let response;
   try {
     response = await fetch('/api/' + path, {
@@ -17,6 +25,11 @@ export async function request(path, method = 'GET', body, signal) {
     throw new Error('Нет ответа от сервера. Проверьте соединение и повторите попытку.');
   }
   const result = await response.json().catch(() => { throw new Error('Сервер вернул нечитаемый ответ.'); });
+  if (retry && ((response.status === 401 && path !== 'auth') || (path === 'auth' && method === 'GET' && !result.authenticated && result.hasSession))) {
+    await refreshSession();
+    return request(path,method,body,signal,false);
+  }
+  if (!response.ok && response.status===401 && !(path==='auth' && method==='POST')) window.dispatchEvent(new Event('films-session-expired'));
   if (!response.ok) throw Object.assign(new Error(result.error || 'Не удалось выполнить запрос.'), {status:response.status});
   return result;
 }
@@ -53,7 +66,7 @@ export function submit(form, save) {
     const data = new FormData(form);
     fields.forEach(el => el.disabled = true);
     error.hidden = true;
-    try { await save(data); }
+    try { await save(data,event); }
     catch (cause) { error.textContent = cause.message;
       if (cause.status === 401 && form.hasAttribute('data-draft')) {
         error.textContent += ' Откройте вход в новой вкладке, затем вернитесь к этой форме и повторите сохранение.';
