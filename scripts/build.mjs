@@ -1,8 +1,9 @@
 import { cp, mkdir, rm, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
 import { resolve } from 'node:path';
-const root=resolve(new URL('..',import.meta.url).pathname);
+const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
 async function check(dir){for(const item of await readdir(dir,{withFileTypes:true})){const path=resolve(dir,item.name);if(item.isDirectory())await check(path);else if(/\.(m?js)$/.test(path))execFileSync(process.execPath,['--check',path],{stdio:'inherit'});}}
 for(const dir of ['api','server','public','scripts'])await check(resolve(root,dir));
 const config=JSON.parse(await readFile(resolve(root,'vercel.json'),'utf8'));

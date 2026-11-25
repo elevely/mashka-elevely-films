@@ -20,13 +20,16 @@ jobs:
         options: --health-cmd pg_isready --health-interval 3s --health-timeout 3s --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - name: Check note concurrency and grants on disposable PostgreSQL
-        env:
-          PGPORT: ${{ job.services.postgres.ports[5432] }}
-        run: psql -h localhost -U fixture -d films_test -v ON_ERROR_STOP=1 -f tests/notes-postgres.sql
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check personal reviews, RLS and grants on disposable PostgreSQL
+        env:
+          PGPORT: ${{ job.services.postgres.ports[5432] }}
+          PGHOST: localhost
+          PGUSER: fixture
+          PGDATABASE: films_test
+        run: npm run test:db
       - run: npm ci --ignore-scripts && npm test && npm run build
       - name: Install isolated browser tools
         run: |
@@ -34,9 +37,7 @@ jobs:
           "$RUNNER_TEMP/browser/node_modules/.bin/playwright" install --with-deps chromium
       - name: Test desktop and mobile in Chromium
         run: |
-          npm run demo > "$RUNNER_TEMP/film-demo.log" 2>&1 &
-          for i in {1..30}; do curl -fsS http://localhost:4173/api/auth > /dev/null && break; sleep 1; done
-          PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" node tests/browser.mjs
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/browser/node_modules/playwright" npm run test:browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:

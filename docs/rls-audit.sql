@@ -15,3 +15,14 @@ order by grantee, privilege_type,column_name;
 select constraint_name,constraint_type from information_schema.table_constraints
 where table_schema='public' and table_name='movies';
 commit;
+
+-- Additional read-only inventory: constraints, defaults, functions, existing triggers and row count.
+begin transaction read only;
+select count(*) as expected_movie_count from public.movies;
+select column_name, column_default from information_schema.columns where table_schema='public' and table_name='movies';
+select conname, pg_get_constraintdef(oid) as definition from pg_constraint where conrelid='public.movies'::regclass;
+select tgname,pg_get_triggerdef(oid) as definition from pg_trigger where tgrelid='public.movies'::regclass and not tgisinternal;
+select n.nspname,p.proname,p.prosecdef as security_definer,pg_get_functiondef(p.oid) as definition
+from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+where n.nspname='public' and p.prokind='f' and (p.prosecdef or p.proname like 'films_%');
+commit;

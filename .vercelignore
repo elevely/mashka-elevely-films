@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+backups/
+private-audit/
+test-results/
+.git/
+node_modules/
+*.log
+.DS_Store
